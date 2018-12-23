@@ -50,7 +50,7 @@ class TodoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) {
             (action) in
             // what to do when user clicks add
-            // valid check for nil: self.itemArray.append(textField.text ?? "New Item")
+            // valid check for nil: self.itemArray.append(textField.text ?? "New Item") like C#
             self.itemArray.append(textField.text!)
             self.tableView.reloadData()
         }
