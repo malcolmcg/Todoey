@@ -8,7 +8,8 @@
 
 import Foundation
 
-class Item {
+// Since Swift 4, Codable is both Encodable and Decodable
+class Item: Codable {
     var title: String = ""
     var done: Bool = false
 }
