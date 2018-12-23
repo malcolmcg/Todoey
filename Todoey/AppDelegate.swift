@@ -16,6 +16,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        // print (NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).last! as String)  // prints the location of the app data on the device or simulator... it's long
         return true
     }
 
