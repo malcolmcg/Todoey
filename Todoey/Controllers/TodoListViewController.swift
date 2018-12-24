@@ -7,27 +7,33 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
 
     var itemArray = [Item]()
+    var selectedCategory: Category? {
+        didSet {  // a Swift keyword that is the C# property setter
+            loadItems()
+        }
+    }
     
     // The path below can be examined in Finder and we can watch the contents being changed
     // as we run the app.
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
-
-//    let defaults = UserDefaults.standard  // for local storage
+//    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    
+    // get the delegate of the app object so we can get the methods for which the app is a delegate
+    // (that's the UIApplicationDelegate implemented by the AppDelegate.swift class)
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
         
-        print(dataFilePath)
-
-        loadItems()
-//        if let items = defaults.array(forKey: "ToDoListArray") as? [Item] {
-//            itemArray = items
-//        }
+        // This prints the approximate location of where the data is being stored with CoreData,
+        // however it's not under the Documents/* whatever, but
+        // under Library/Application Support/DataModel.sqlite
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
     }
     
     //MARK - Tableview Datasource Methods
@@ -47,8 +53,15 @@ class TodoListViewController: UITableViewController {
 
     //MARK - Tableview Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        //print (itemArray[indexPath.row])
 
+        // Can update using...
+        // itemArray[indexPath.row].setValue("Completed", forKey: "title")
+        
+        // Can delete using... (make sure the order is correct, as shown below).
+        //context.delete(itemArray[indexPath.row])  // we must still call context.save
+        //itemArray.remove(at: indexPath.row)
+
+        
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
         saveItems()
@@ -65,9 +78,11 @@ class TodoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) {
             (action) in
             // what to do when user clicks add
-            // valid check for nil: self.itemArray.append(textField.text ?? "New Item") like C#
-            let newItem = Item()
+            
+            let newItem = Item(context: self.context)
             newItem.title = textField.text!
+            newItem.done = false
+            newItem.parentCategory = self.selectedCategory
             self.itemArray.append(newItem)
             self.saveItems()
         }
@@ -83,33 +98,67 @@ class TodoListViewController: UITableViewController {
     
     //MARK - Model manipulation methods
     func saveItems() {
-        
-        let encoder = PropertyListEncoder()
         do {
-            // Note that Item (in the Data Model) is marked with the "Encodable" attribute as it's
-            // a custom type.  If we don't do this then the call to encoder.encode will display a
-            // compiler error screaming that the type can't be inferred.
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         }
         catch {
-            print("Error encoding item \(error)")
+            print("Error saving context \(error)")
         }
 
         tableView.reloadData()
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            do {
-                // Note necessary use of the word ".self"
-                itemArray = try decoder.decode([Item].self, from: data)
-            }
-            catch {
-                print("Error decoding item array, \(error)")
-            }
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) {
+        
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
         }
+        else {
+            request.predicate = categoryPredicate
+        }
+        
+        // Get the data from the database
+        do {
+            itemArray = try context.fetch(request)
+        }
+        catch {
+            print("Error fetching data from context \(error)")
+        }
+        
+        tableView.reloadData()
     }
 }
 
+//MARK: - Search bar methods
+extension TodoListViewController: UISearchBarDelegate {
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        // for predicate syntax, see here:
+        // https://academy.realm.io/posts/nspredicate-cheatsheet/
+        // https://nshipster.com/nspredicate/
+        
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadItems(with: request)
+    }
+
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        // Tests for if search bar cleared
+        if searchBar.text?.count == 0 {
+            loadItems()
+            
+            // DispatchQueue object manages the allocation/execution of work items
+            // A bit like execute on main thread in Xamarin/Windows
+            DispatchQueue.main.async {
+                // execute this code on the main thread
+                searchBar.resignFirstResponder() // Closes keyboard, deactivates control
+            }
+        }
+    }
+
+}
