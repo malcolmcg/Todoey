@@ -7,24 +7,20 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class TodoListViewController: UITableViewController {
 
-    var itemArray = [Item]()
+    let realm = try! Realm()
+    var todoItems : Results<Item>?
+    
+    //var itemArray = Results<Item>?
+
     var selectedCategory: Category? {
         didSet {  // a Swift keyword that is the C# property setter
-            loadItems()
+            loadItems()  // only called if selected category is not set to nil because of the ? above
         }
     }
-    
-    // The path below can be examined in Finder and we can watch the contents being changed
-    // as we run the app.
-//    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
-    
-    // get the delegate of the app object so we can get the methods for which the app is a delegate
-    // (that's the UIApplicationDelegate implemented by the AppDelegate.swift class)
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -38,15 +34,33 @@ class TodoListViewController: UITableViewController {
     
     //MARK - Tableview Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return itemArray.count
+        
+        var theCount = todoItems?.count ?? 1  // todoItems?.count can be 0
+        theCount = max(theCount, 1)
+        return theCount
+        
+        //return todoItems?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
-        let item = itemArray[indexPath.row]
+//        if let item = todoItems?[indexPath.row] {
+//            cell.textLabel?.text = item.title
+//            cell.accessoryType = item.done ? .checkmark : .none
+//        }
+//        else {
+//            cell.textLabel?.text = "No items added"
+//        }
         
-        cell.textLabel?.text = item.title
-        cell.accessoryType = item.done ? .checkmark : .none
+        if todoItems?.count == 0 {
+            cell.textLabel?.text = "No items added"
+        }
+        else {
+            if let item = todoItems?[indexPath.row] {
+                cell.textLabel?.text = item.title
+                cell.accessoryType = item.done ? .checkmark : .none
+            }
+        }
         
         return cell
     }
@@ -62,11 +76,36 @@ class TodoListViewController: UITableViewController {
         //itemArray.remove(at: indexPath.row)
 
         
-        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+//        todoItems?[indexPath.row].done = !(todoItems[indexPath.row].done)
+//        saveItems()
         
-        saveItems()
+/* Code for deleting an item...
+        if let item = todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(item)
+                }
+            }
+            catch {
+                print("Error saving delete \(error)")
+            }
+        }
+*/
+        
+        if let item = todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    item.done = !item.done
+                }
+            }
+            catch {
+                print("Error saving done status \(error)")
+            }
+        }
+        tableView.reloadData()
+        
         tableView.deselectRow(at: indexPath, animated: true)
-        
+
     }
     
     //MARK - Add New Items
@@ -79,12 +118,22 @@ class TodoListViewController: UITableViewController {
             (action) in
             // what to do when user clicks add
             
-            let newItem = Item(context: self.context)
-            newItem.title = textField.text!
-            newItem.done = false
-            newItem.parentCategory = self.selectedCategory
-            self.itemArray.append(newItem)
-            self.saveItems()
+            if let currentCategory = self.selectedCategory {
+                do {
+                    try self.realm.write {
+                        let newItem = Item()
+                        newItem.title = textField.text!
+                        // newItem.done = false  // specified in the Category model
+                        newItem.dateCreated = Date()
+                        currentCategory.items.append(newItem)  // We have to sort the relationship
+                    }
+                }
+                catch {
+                    print("Error saving new item \(error)")
+                }
+            }
+            
+            self.tableView.reloadData()
         }
         
         alert.addTextField { (alertTextField) in
@@ -96,62 +145,36 @@ class TodoListViewController: UITableViewController {
         present(alert, animated: true, completion: nil)
     }
     
-    //MARK - Model manipulation methods
-    func saveItems() {
-        do {
-            try context.save()
-        }
-        catch {
-            print("Error saving context \(error)")
-        }
-
-        tableView.reloadData()
-    }
-    
-    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) {
-        
-        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
-        
-        if let additionalPredicate = predicate {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
-        }
-        else {
-            request.predicate = categoryPredicate
-        }
-        
-        // Get the data from the database
-        do {
-            itemArray = try context.fetch(request)
-        }
-        catch {
-            print("Error fetching data from context \(error)")
-        }
-        
+    func loadItems() {
+        todoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
         tableView.reloadData()
     }
 }
 
 //MARK: - Search bar methods
 extension TodoListViewController: UISearchBarDelegate {
-    
+
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        let request : NSFetchRequest<Item> = Item.fetchRequest()
         
+        todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
+        
+        // Sort items by descending date created
+        todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: false)
+        
+        tableView.reloadData()
+/*
+        // filter (above) takes a predicate.
         // for predicate syntax, see here:
         // https://academy.realm.io/posts/nspredicate-cheatsheet/
         // https://nshipster.com/nspredicate/
-        
-        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-        
-        loadItems(with: request, predicate: predicate)
+*/
     }
 
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         // Tests for if search bar cleared
         if searchBar.text?.count == 0 {
             loadItems()
-            
+
             // DispatchQueue object manages the allocation/execution of work items
             // A bit like execute on main thread in Xamarin/Windows
             DispatchQueue.main.async {
