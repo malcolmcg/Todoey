@@ -8,7 +8,9 @@
 
 import UIKit
 import RealmSwift
+import SwipeCellKit
 
+// Note, we have included pod SwipeCellKit
 class CategoryViewController: UITableViewController {
     
     let realm = try! Realm()
@@ -19,6 +21,7 @@ class CategoryViewController: UITableViewController {
         super.viewDidLoad()
         
         loadCategories()
+        tableView.rowHeight = 80.0  // Increases the height of the cell to accomodate the delete-icon image height
     }
     
     //MARK: TableView Datasource methods
@@ -34,7 +37,12 @@ class CategoryViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
+
+        // Note: in order for the below line to work, in Main.storyboard it is necessary to set the class
+        // of the Category view's prototype cell to be SwipeTableViewCell - inherits UITableViewCell
+        // and the module to be SwipeCellKit - these come from the SwipeCellKit pod
+        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath) as! SwipeTableViewCell  // Cast to a swipeable cell from pod SwipeCellKit
+        cell.delegate = self //
         
         if categories?.count == 0 {
             cell.textLabel?.text = "No categories added yet"
@@ -101,5 +109,44 @@ class CategoryViewController: UITableViewController {
         }
         
     }
-    
 }
+
+
+//MARK: - Swipe Cell Delegate Methods
+extension CategoryViewController: SwipeTableViewCellDelegate {
+
+    // Note:
+    func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath, for orientation: SwipeActionsOrientation) -> [SwipeAction]? {
+        guard orientation == .right else { return nil }
+        
+        let deleteAction = SwipeAction(style: .destructive, title: "Delete") { action, indexPath in
+            // handle action by updating model with deletion
+            if let categoryForDeletion = self.categories?[indexPath.row] {
+                do {
+                    try self.realm.write {
+                        self.realm.delete(categoryForDeletion)
+                    }
+                }
+                catch {
+                    print("Error deleting category \(error)")
+                }
+            }
+            
+            self.tableView.reloadData()
+        }
+        
+        // customize the action appearance
+        deleteAction.image = UIImage(named: "delete-icon")  // Name is case-sensitive
+        
+        return [deleteAction]
+    }
+    
+    // Not working as it should... need to review at https://github.com/SwipeCellKit/SwipeCellKit
+    func collectionView(_ collectionView: UICollectionView, editActionsOptionsForItemAt indexPath: IndexPath, for orientation: SwipeActionsOrientation) -> SwipeOptions {
+        var options = SwipeOptions()
+        options.expansionStyle = .destructive  // Will delete data
+//        options.transitionStyle = .border
+        return options
+    }
+}
+
