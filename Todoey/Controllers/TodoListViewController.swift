@@ -8,6 +8,7 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
 class TodoListViewController: SwipeTableViewController {
 
@@ -30,6 +31,8 @@ class TodoListViewController: SwipeTableViewController {
         // however it's not under the Documents/* whatever, but
         // under Library/Application Support/DataModel.sqlite
         print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        
+        tableView.separatorStyle = .none
     }
     
     //MARK - Tableview Datasource Methods
@@ -58,6 +61,15 @@ class TodoListViewController: SwipeTableViewController {
         else {
             if let item = todoItems?[indexPath.row] {
                 cell.textLabel?.text = item.title
+                
+//                if let colour = FlatSkyBlue().darken(byPercentage:  // Just pick any colour
+                // Base the initial colour on the selected category which cannot be nil, but we
+                // must chain in case the colour (a string) is rubbish.
+                if let colour = UIColor(hexString: selectedCategory!.colour)?.darken(byPercentage:
+                    CGFloat(indexPath.row) / CGFloat(todoItems!.count)) {
+                    cell.backgroundColor = colour
+                    cell.textLabel?.textColor = ContrastColorOf(colour, returnFlat: true)
+                }
                 cell.accessoryType = item.done ? .checkmark : .none
             }
         }
