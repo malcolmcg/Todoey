@@ -11,6 +11,7 @@ import RealmSwift
 
 class Category : Object {
     @objc dynamic var name : String = ""
+    @objc dynamic var colour : String = ""
     
     // Note: If you change the name "items" below then change it in the Item.swift file also
     // This is the forward relationship for SQL 1 to many relationship
