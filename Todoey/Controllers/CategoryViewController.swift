@@ -53,7 +53,7 @@ class CategoryViewController: SwipeTableViewController {
             cell.textLabel?.textColor = ContrastColorOf(UIColor(hexString: backgroundColourString)!, returnFlat: true)
         }
         
-        return cell
+        return cell 
     }
 
     //MARK: Data manipulation methods
