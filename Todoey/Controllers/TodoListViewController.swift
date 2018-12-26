@@ -15,6 +15,7 @@ class TodoListViewController: SwipeTableViewController {
     let realm = try! Realm()
     var todoItems : Results<Item>?
     
+    @IBOutlet weak var searchBar: UISearchBar!
     //var itemArray = Results<Item>?
 
     var selectedCategory: Category? {
@@ -30,12 +31,57 @@ class TodoListViewController: SwipeTableViewController {
         // This prints the approximate location of where the data is being stored with CoreData,
         // however it's not under the Documents/* whatever, but
         // under Library/Application Support/DataModel.sqlite
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        // print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
         tableView.separatorStyle = .none
+        
+        // Note: At this point navigationController may still be nil!!!!!
+        // So we set the navigationController's background in viewWillAppear (below)
     }
     
-    //MARK - Tableview Datasource Methods
+    override func viewWillAppear(_ animated: Bool) {
+        // Note: This method is called AFTER viewDidLoad and the navigation controller is available
+        
+        title = selectedCategory?.name  // Sets the title of the view controller
+        
+        // guard effectively ensures the statement works and if it doesn't then the else is executed.
+        guard let colourHex = selectedCategory?.colour else {fatalError("")}
+        updateNavBar(withHexCode: colourHex)
+
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        updateNavBar(withHexCode: "1D9BF6")  // Constant used in a few places!!!!!
+    }
+    
+    //MARK: - Nav Bar setup methods
+    func updateNavBar(withHexCode colourHexCode: String) {
+        
+        // guard effectively ensures the statement works and if it doesn't then the else is executed.
+        
+        /*
+         guard let vs. if let:
+         1. You should use guard let if you find yourself using lots of indented if lets (i.e. a stack of if lets)
+         2. You should use if let when there is a fair chance something will fail.
+         3. You should use guard let when there is little chance of something failing.
+         */
+        guard let navBar = navigationController?.navigationBar else {
+            // print and stop execution
+            fatalError("Navigation Controller does not exist")
+        }
+        
+        // For navigation bar stuff, see here: https://developer.apple.com/documentation/uikit/uinavigationbar
+        guard let navBarColour = UIColor(hexString: colourHexCode) else {fatalError("")}
+        navBar.barTintColor = navBarColour
+        navBar.tintColor = ContrastColorOf(navBarColour, returnFlat: true)
+        
+        // The below line also affects other items in the navbar (like the
+        // colour of the "+" button)... so long as their colour is set to default.
+        navBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor: ContrastColorOf(navBarColour, returnFlat: true)]
+        searchBar.barTintColor = navBarColour
+    }
+    
+    //MARK: - Tableview Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         
         var theCount = todoItems?.count ?? 1  // todoItems?.count can be 0
